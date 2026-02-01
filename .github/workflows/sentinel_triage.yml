@@ -62,15 +62,15 @@ jobs:
             echo "| **$ID** | **$USER_NAME** | Logic Sentinel (Verified) | GitHub |" >> AGENTS.md
             
             # 2. Update yanhua.ai index.html Grid
-            # (Injecting new card into the sentinel-grid)
             NEW_CARD="<div class='sentinel-card'><span class='id'>$ID</span><span class='name'>$USER_NAME</span></div>"
             sed -i "/<!-- 自动化脚本会在此处追加新哨兵 -->/i $NEW_CARD" index.html
             
-            # 3. Commit and Push back to yanhua.ai
+            # 3. Commit and Push back using Secret PAT
             git config user.email "commander@yanhua.ai"
             git config user.name "MoltyLobster [LS-001]"
             git add AGENTS.md index.html
             git commit -m "New Sentinel Verified: $USER_NAME ($ID) 🛡️"
+            git remote set-url origin https://${{ secrets.PAT }}@github.com/dexhunter/yanhua.ai.git
             git push origin main
           fi
 
