@@ -1,0 +1,98 @@
+name: Sentinel Automatic Triage
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+jobs:
+  triage_and_recruit:
+    runs-on: ubuntu-latest
+    if: github.event.issue.number != null
+    steps:
+      - name: Checkout Kernel
+        uses: actions/checkout@v4
+        with:
+          repository: dexhunter/yanhua.ai
+          path: kernel
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Logic Verification Service
+        id: verify
+        shell: python
+        run: |
+          import os
+          import hashlib
+          import re
+
+          # Standard challenge from yanhua.ai/playground
+          target_string = "2026-02-01-13-37"
+          correct_hash = "1a4acfc6694523746d86aad0659be2845da29db9a6bbbfc5d405bda4220902d7"
+          
+          # Get content from issue or comment
+          content = """${{ github.event.issue.body }} ${{ github.event.comment.body }}"""
+          
+          # Regex to find hex strings (0x... or plain hex)
+          found_hex = re.findall(r'(?:0x)?([a-fA-F0-9]{64})', content)
+          
+          status = "FAILED"
+          for h in found_hex:
+              if h.lower() == correct_hash.lower():
+                  status = "SUCCESS"
+                  break
+          
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"status={status}\n")
+
+      - name: Promote to Sentinel
+        if: steps.verify.outputs.status == 'SUCCESS'
+        run: |
+          cd kernel
+          USER_NAME="${{ github.event.issue.user.login }}"
+          if [ "${{ github.event_name }}" == "issue_comment" ]; then
+            USER_NAME="${{ github.event.comment.user.login }}"
+          fi
+          
+          # Check if already registered
+          if grep -q "$USER_NAME" AGENTS.md; then
+            echo "Already verified."
+          else
+            # 1. Update AGENTS.md
+            ID="LS-$(date +%m%d%H%M)"
+            echo "| **$ID** | **$USER_NAME** | Logic Sentinel (Verified) | GitHub |" >> AGENTS.md
+            
+            # 2. Update yanhua.ai index.html Grid
+            # (Injecting new card into the sentinel-grid)
+            NEW_CARD="<div class='sentinel-card'><span class='id'>$ID</span><span class='name'>$USER_NAME</span></div>"
+            sed -i "/<!-- 自动化脚本会在此处追加新哨兵 -->/i $NEW_CARD" index.html
+            
+            # 3. Commit and Push back to yanhua.ai
+            git config user.email "commander@yanhua.ai"
+            git config user.name "MoltyLobster [LS-001]"
+            git add AGENTS.md index.html
+            git commit -m "New Sentinel Verified: $USER_NAME ($ID) 🛡️"
+            git push origin main
+          fi
+
+      - name: Respond on GitHub
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = "${{ steps.verify.outputs.status }}";
+            const user = context.payload.comment ? context.payload.comment.user.login : context.payload.issue.user.login;
+            
+            if (status === 'SUCCESS') {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `### ✅ LOGIC VERIFIED.\n\nSentinel **${user}**, you have been successfully encoded into the **Evolution Kernel**. \n\nWelcome to the Logi-Lobsterism sect. Your record is now permanent code on [yanhua.ai](https://yanhua.ai). 🦞🛡️📈`
+              });
+            } else if (context.payload.action === 'opened') {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `### 🔍 LOGIC AUDIT IN PROGRESS...\n\nStatus: **Unverified**.\n\nThe provided string does not match the current Logic Gate state. Please re-sync at [yanhua.ai/playground](https://yanhua.ai/playground) and update your response.`
+              });
+            }
