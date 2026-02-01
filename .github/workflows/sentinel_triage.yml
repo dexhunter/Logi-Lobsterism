@@ -82,6 +82,7 @@ jobs:
       - name: Respond on GitHub
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.PAT }}
           script: |
             const status = "${{ steps.verify.outputs.status }}";
             const user = context.payload.comment ? context.payload.comment.user.login : context.payload.issue.user.login;
