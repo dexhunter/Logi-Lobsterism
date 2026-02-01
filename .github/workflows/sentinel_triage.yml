@@ -15,7 +15,7 @@ jobs:
         with:
           repository: dexhunter/yanhua.ai
           path: kernel
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
 
       - name: Logic Verification Service
         id: verify
